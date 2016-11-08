@@ -31,12 +31,12 @@ def main(args):
         model = LatentFEVRNNModel
     elif FLAGS.model == 'latent_fe_prior':
         model = LatentFEPriorVRNNModel
-    elif FLAGS.model = 'latent_lstm':
+    elif FLAGS.model == 'latent_lstm':
         model = LatentLSTMVRNNModel
-    print('Sampling from %s model', FLAGS.model)
+    print('Sampling from %s model' % FLAGS.model)
 
     with tf.variable_scope('model', reuse=None):
-        m = model(args=FLAGS)
+        m = model(args=FLAGS, infer=True)
 
     token_to_id, id_to_token = reader.two_way_mapping(FLAGS.data_dir, FLAGS.by_char)
 

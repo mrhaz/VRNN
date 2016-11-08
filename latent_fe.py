@@ -25,7 +25,7 @@ class LatentFEVRNNModel(VRNNModel):
 
         with tf.device('/cpu:0'):
             embedding = tf.get_variable('embedding',
-                                        [vocab_size, x_dim] 
+                                        [vocab_size, x_dim],
                                         dtype=tf.float32)
             inputs = tf.nn.embedding_lookup(embedding, self._input_data)
 

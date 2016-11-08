@@ -1,4 +1,6 @@
+import collections
 import tensorflow as tf
+from tensorflow.python.util import nest
 
 def KLGaussianStdGaussian(z_mean, z_log_sigma_sq):
     return -0.5 * tf.reduce_sum(1 + tf.square(z_log_sigma_sq)
@@ -28,9 +30,6 @@ _VRNNStateTuple = collections.namedtuple('VRNNStateTuple', ('z', 'z_mean', 'z_lo
 
 
 class VRNNStateTuple(_VRNNStateTuple):
-    """A construct that allows the hidden state to be stored alongside the latent means
-    and standard deviations that it was sampled from. Increases efficiency over concatenation
-    the samples with the means and standard deviations."""
     __slots__ = ()
 
     @property
@@ -44,11 +43,24 @@ class VRNNStateTuple(_VRNNStateTuple):
         return z.dtype
 
 
+_LatentLSTMVRNNStateTuple = collections.namedtuple('LatentLSTMVRNNStateTuple', ('z', 'lstm'))
+
+
+class LatentLSTMVRNNStateTuple(_LatentLSTMVRNNStateTuple):
+    __slots__ = ()
+
+    @property
+    def dtype(self):
+        (z, lstm) = self
+
+        return z.dtype
+
+
 class LatentHiddensVRNNCell(tf.nn.rnn_cell.RNNCell): 
 
     def __init__(self, num_units, activation=tf.nn.sigmoid, state_is_tuple=True):
         if not state_is_tuple:
-            raise ValueError('VRNN State must be a tuple')
+            raise ValueError('LatentHiddensVRNNCell state must be a tuple')
 
         self._num_units = num_units
         self._activation = activation
@@ -63,7 +75,7 @@ class LatentHiddensVRNNCell(tf.nn.rnn_cell.RNNCell):
         return self._num_units
 
     def __call__(self, inputs, state, scope=None):
-        """Variational recurrent neural network cell (VRNN)."""
+        """VRNN Cell."""
         with tf.variable_scope(scope or type(self).__name__):
             # Update the hidden state.
             z_t, z_mean_t, z_log_sigma_sq_t = state
@@ -80,6 +92,30 @@ class LatentHiddensVRNNCell(tf.nn.rnn_cell.RNNCell):
                     eps))
 
             return z_t_1, VRNNStateTuple(z_t_1, z_mean_t_1, z_log_sigma_sq_t_1)
+
+
+class LatentLSTMVRNNCell(tf.nn.rnn_cell.RNNCell):
+
+    def __init__(self, num_units, activation=tf.nn.sigmoid, state_is_tuple=True):
+        if not state_is_tuple:
+            raise ValueError('LatentLSTMVRNNCell state must be tuple')
+
+        self._num_units = num_units
+        self._activation = activation
+        self._state_is_tuple = state_is_tuple
+        self._lstm = tf.nn.rnn_cell.LSTMCell(num_units, state_is_tuple=state_is_tuple)
+
+    @property
+    def state_size(self):
+        return LatentLSTMVRNNStateTuple(self._num_units, self._lstm.state_size())
+
+    @property
+    def output_size(self):
+        return self.num_units
+
+    def __call__(self, inputs, state, scope=None):
+        with tf.variable_scope(scope or type(self).__name__):
+            z_t, lstm = state
 
 
 class VRNNModel(object):
@@ -118,6 +154,7 @@ class VRNNModel(object):
 
     def assign_lr(self, session, lr_value):
         session.run(self._lr_update, feed_dict={self._new_lr: lr_value})
+
 
 def _linear(args, output_size, bias, bias_start=0.0, scope=None):
   """Linear map: sum_i(args[i] * W[i]), where W[i] is a variable.

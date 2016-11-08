@@ -2,16 +2,14 @@
 input word embedding."""
 from __future__ import division
 
-import collections
 import tensorflow as tf
 
-from tensorflow.python.ops.rnn_cell import _linear
 from utils import KLGaussianStdGaussian, FullyConnected, LatentHiddensVRNNCell, VRNNModel
 
 
 class LatentHiddensVRNNModel(VRNNModel):
 
-    def __init__(self, args):
+    def __init__(self, args, infer=False):
         self.batch_size = batch_size = args.batch_size
         self.seq_length = seq_length = args.seq_length
         size = args.latent_dimensions
@@ -21,11 +19,18 @@ class LatentHiddensVRNNModel(VRNNModel):
         self._input_data = tf.placeholder(tf.int32, [batch_size, seq_length])
         self._targets = tf.placeholder(tf.int32, [batch_size, seq_length])
 
+        softmax_w = tf.get_variable("softmax_w", [size, vocab_size])
+        softmax_b = tf.get_variable("softmax_b", [vocab_size])
         with tf.device('/cpu:0'):
             embedding = tf.get_variable('embedding',
                                         [vocab_size, size],
                                         dtype=tf.float32)
             inputs = tf.nn.embedding_lookup(embedding, self._input_data)
+
+        def loop(prev, _):
+            prev = tf.matmul(prev, softmax_w) + softmax_b
+            prev_symbol = tf.stop_gradient(tf.argmax(prev, 1))
+            return tf.nn.embedding_lookup(embedding, prev_symbol)
 
         inputs = [tf.squeeze(input_step, [1])
                   for input_step in tf.split(1, seq_length, inputs)]
@@ -33,16 +38,21 @@ class LatentHiddensVRNNModel(VRNNModel):
         cell = LatentHiddensVRNNCell(size, state_is_tuple=True)
         cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=True)
         self._initial_state = cell.zero_state(batch_size, tf.float32)
-        z, last_state = tf.nn.rnn(cell,
-                rnn_inputs,
-                initial_state=self._initial_state)
+        #z, last_state = tf.nn.rnn(cell,
+        #        inputs,
+        #        initial_state=self._initial_state)
+        z, last_state = tf.nn.seq2seq.rnn_decoder(inputs,
+                self.initial_state,
+                cell,
+                loop_function=loop if infer else None, scope='rnnlm') 
 
         z = tf.reshape(tf.concat(1, z), [-1, size])
 
-        logits = FullyConnected(z,
-                [size, vocab_size],
-                unit='linear',
-                name='logits')
+        #logits = FullyConnected(z,
+        #        [size, vocab_size],
+        #        unit='linear',
+        #        name='logits')
+        logits = tf.matmul(z, softmax_w) + softmax_b
         self._probs = tf.nn.softmax(logits)
 
         recon_loss = tf.nn.seq2seq.sequence_loss_by_example(

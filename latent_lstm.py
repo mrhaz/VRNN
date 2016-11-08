@@ -1,5 +1,5 @@
 """VRNN model that uses both LSTM cell and latent states sampled from a feature extraction
-network to generate text"""
+network to generate text."""
 from __future__ import division
 
 import tensorflow as tf
@@ -25,44 +25,18 @@ class LatentLSTMVRNNModel(VRNNModel):
 
         with tf.device('/cpu:0'):
             embedding = tf.get_variable('embedding',
-                                        [vocab_size, x_dim],
+                                        [vocab_size, vocab_size],
                                         dtype=tf.float32)
             inputs = tf.nn.embedding_lookup(embedding, self._input_data)
 
         inputs = [tf.squeeze(input_step, [1])
                   for input_step in tf.split(1, seq_length, inputs)]
-        inputs = tf.reshape(inputs, [-1, seq_length * x_dim])
-
-        phi_1 = FullyConnected(inputs,
-                [x_dim * seq_length, x2s_dim],
-                unit='relu',
-                name='phi_1')
-        
-        phi_2 = FullyConnected(phi_1,
-                [x2s_dim, x2s_dim],
-                unit='relu',
-                name='phi_2')
-        
-        phi_3 = FullyConnected(phi_2,
-                [x2s_dim, x2s_dim],
-                unit='relu',
-                name='phi_3')
-
-        phi_4 = FullyConnected(phi_3,
-                [x2s_dim, x2s_dim],
-                unit='relu',
-                name='phi_4')
-
-        rnn_inputs = \
-                [tf.squeeze(tf.reshape(input_step,
-                    [batch_size, 1, x2s_dim // seq_length]),[1])
-                    for input_step in tf.split(1, seq_length, phi_4)]
 
         cell = tf.nn.rnn_cell.LSTMCell(size, state_is_tuple=True)
         cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=True)
         self._initial_state = cell.zero_state(batch_size, tf.float32)
         h, last_state = tf.nn.rnn(cell,
-                rnn_inputs,
+                inputs,
                 initial_state=self._initial_state)
 
         h = tf.reshape(tf.concat(1, h), [-1, size])
@@ -115,3 +89,4 @@ class LatentLSTMVRNNModel(VRNNModel):
         self._new_lr = tf.placeholder(tf.float32, shape=[],
                                       name='new_learning_rate')
         self._lr_update = tf.assign(self._lr, self._new_lr)
+
