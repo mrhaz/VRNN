@@ -6,14 +6,16 @@ import collections
 import time
 import os
 
-from vrnn import BasicVRNNCell, VRNNModel
+from latent_hiddens import LatentHiddensVRNNModel
+from latent_fe import LatentFEVRNNModel
+from latent_lstm import LatentLSTMVRNNModel
 import ptb_reader as reader
 
 flags = tf.flags
 FLAGS = flags.FLAGS
+flags.DEFINE_string('--model', 'latent_hiddens', 'VRNN Model to train.')
 flags.DEFINE_string('--data_dir', '../simple-examples/data', 'Directory containing PTB.')
 flags.DEFINE_string('--save_dir', 'save', 'Directory to store checkpointed models.')
-flags.DEFINE_string('--init_from', None, 'Directory to initialise model.')
 flags.DEFINE_integer('--latent_dimensions', 200, 'The size of the RNN hidden state.')
 flags.DEFINE_integer('--num_layers', 128, 'The number of layers in the RNN.')
 flags.DEFINE_integer('--batch_size', 128, 'Minibatch size.')
@@ -61,15 +63,16 @@ def run_epoch(session, model, data, eval_op=None, verbose=False):
 
 
 def main(args):
-    if FLAGS.init_from is not None:
-        assert os.path.isdir(FLAGS.init_from), \
-                '%s does not exist' % FLAGS.init_from
+    if FLAGS.model == 'latent_hiddens':
+        model = LatentHiddensVRNNModel
+    elif FLAGS.model == 'latent_fe':
+        model = LatentFEVRNNModel
+    elif FLAGS.model == 'latent_fe_prior':
+        model = LatentFEPriorVRNNModel
+    elif FLAGS.model = 'latent_lstm':
+        model = LatentLSTMVRNNModel
+    print('training %s model', FLAGS.model)
 
-        ckpt = tf.train.get_checkpoint_state(FLAGS.init_from)
-
-        assert ckpt, 'No checkpoint found'
-        assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
-    
     raw_data = reader.ptb_raw_data(FLAGS.data_dir)
     train_data, valid_data, test_data, _ = raw_data
 
@@ -78,17 +81,14 @@ def main(args):
                                                     FLAGS.init_scale)
 
         with tf.variable_scope('model', reuse=None, initializer=initializer):
-            m = VRNNModel(args=FLAGS)
+            m = model(args=FLAGS)
         with tf.variable_scope('model', reuse=True, initializer=initializer):
-            mvalid = VRNNModel(args=FLAGS)
-            mtest = VRNNModel(args=FLAGS)
+            mvalid = model(args=FLAGS)
+            mtest = model(args=FLAGS)
 
         tf.initialize_all_variables().run()
 
         saver = tf.train.Saver(tf.all_variables())
-
-        if FLAGS.init_from is not None:
-            saver.restore(session, ckpt.model_checkpoint_path)
 
         for i in range(FLAGS.num_epochs):
             lr_decay = FLAGS.decay_rate ** max(i - FLAGS.decay_start, 0.0)
