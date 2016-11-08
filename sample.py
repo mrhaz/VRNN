@@ -8,9 +8,9 @@ import ptb_reader as reader
 
 flags = tf.flags
 FLAGS = flags.FLAGS
+flags.DEFINE_string('--model', 'latent_hiddens', 'VRNNModel to sample from.')
 flags.DEFINE_string('--data_dir', '../simple-examples/data', 'Directory containing PTB.')
 flags.DEFINE_string('--save_dir', 'save', 'Directory to store checkpointed models.')
-flags.DEFINE_string('--init_from', None, 'Directory to initialise model.')
 flags.DEFINE_integer('--latent_dimensions', 200, 'The size of the RNN hidden state.')
 flags.DEFINE_integer('--num_layers', 128, 'The number of layers in the RNN.')
 flags.DEFINE_integer('--batch_size', 1, 'Minibatch size.')
@@ -25,8 +25,18 @@ flags.DEFINE_integer('--vocab_size', 10000, 'Number of unique tokens in vocabula
 flags.DEFINE_float('--init_scale', 0.1, 'Initialisation range.')
 
 def main(args):
+    if FLAGS.model == 'latent_hiddens':
+        model = LatentHiddensVRNNModel
+    elif FLAGS.model == 'latent_fe':
+        model = LatentFEVRNNModel
+    elif FLAGS.model == 'latent_fe_prior':
+        model = LatentFEPriorVRNNModel
+    elif FLAGS.model = 'latent_lstm':
+        model = LatentLSTMVRNNModel
+    print('Sampling from %s model', FLAGS.model)
+
     with tf.variable_scope('model', reuse=None):
-        msample = VRNNModel(args=FLAGS)
+        m = model(args=FLAGS)
 
     token_to_id, id_to_token = reader.two_way_mapping(FLAGS.data_dir, FLAGS.by_char)
 
@@ -38,11 +48,11 @@ def main(args):
         if ckpt and ckpt.model_checkpoint_path:
             saver.restore(session, ckpt.model_checkpoint_path)
             
-            state = session.run(msample.initial_state)
+            state = session.run(m.initial_state)
             x = np.zeros((1, 1))
             for token in prime_text[:-1]:
                 x[0, 0] = token_to_id[token]
-                feed = {msample.input_data: x, msample.initial_state: state}
+                feed = {m.input_data: x, m.initial_state: state}
                 [state] = sess.run([self.final_state], feed)
 
             def weighted_pick(weights):
@@ -54,8 +64,8 @@ def main(args):
             token = prime_text[-1]
             for n in range(sys_args.n):
                 x[0, 0] = token_to_id[token]
-                feed = {msample.input_data: x, msample.initial_state: state}
-                [probs, state] = session.run([msample.probs, msample.final_state], feed)
+                feed = {m.input_data: x, m.initial_state: state}
+                [probs, state] = session.run([m.probs, m.final_state], feed)
                 p = probs[0]
                 
                 pred_id = np.argmax(p)

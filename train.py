@@ -71,7 +71,7 @@ def main(args):
         model = LatentFEPriorVRNNModel
     elif FLAGS.model = 'latent_lstm':
         model = LatentLSTMVRNNModel
-    print('training %s model', FLAGS.model)
+    print('Training %s model', FLAGS.model)
 
     raw_data = reader.ptb_raw_data(FLAGS.data_dir)
     train_data, valid_data, test_data, _ = raw_data
