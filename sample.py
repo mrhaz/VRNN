@@ -6,6 +6,10 @@ import numpy as np
 from vrnn import VRNNModel
 import ptb_reader as reader
 
+from latent_hiddens import LatentHiddensVRNNModel
+from latent_fe import LatentFEVRNNModel
+from latent_lstm import LatentLSTMVRNNModel
+
 flags = tf.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_string('--model', 'latent_hiddens', 'VRNNModel to sample from.')
@@ -23,6 +27,8 @@ flags.DEFINE_float('--decay_rate', 0.97, 'Decay rate for the learning rate.')
 flags.DEFINE_integer('--decay_start', 5, 'When to begin decreasing learning rate.')
 flags.DEFINE_integer('--vocab_size', 10000, 'Number of unique tokens in vocabulary.')
 flags.DEFINE_float('--init_scale', 0.1, 'Initialisation range.')
+flags.DEFINE_string('--prime', 'hello', 'Priming text.')
+flags.DEFINE_integer('--n', 50, 'Sample length.')
 
 def main(args):
     if FLAGS.model == 'latent_hiddens':
@@ -38,13 +44,13 @@ def main(args):
     with tf.variable_scope('model', reuse=None):
         m = model(args=FLAGS, infer=True)
 
-    token_to_id, id_to_token = reader.two_way_mapping(FLAGS.data_dir, FLAGS.by_char)
+    token_to_id, id_to_token = reader.two_way_mapping(FLAGS.data_dir)
 
-    prime_text = sys_args.prime.split()
+    prime_text = FLAGS.prime.split()
 
     with tf.Session() as session:
         saver = tf.train.Saver()
-        ckpt = tf.train.get_checkpoint_state(sys_args.save_dir)
+        ckpt = tf.train.get_checkpoint_state(FLAGS.save_dir)
         if ckpt and ckpt.model_checkpoint_path:
             saver.restore(session, ckpt.model_checkpoint_path)
             
@@ -62,7 +68,7 @@ def main(args):
 
             ret = ' '.join(prime_text)
             token = prime_text[-1]
-            for n in range(sys_args.n):
+            for n in range(FLAGS.n):
                 x[0, 0] = token_to_id[token]
                 feed = {m.input_data: x, m.initial_state: state}
                 [probs, state] = session.run([m.probs, m.final_state], feed)
@@ -75,6 +81,8 @@ def main(args):
                 else: 
                     ret += pred + ' '
                 token = pred
+        else:
+            raise ValueError('ckpt or model_checkpoint_path not found')
     
     return ret
 

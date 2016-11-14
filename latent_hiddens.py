@@ -38,9 +38,6 @@ class LatentHiddensVRNNModel(VRNNModel):
         cell = LatentHiddensVRNNCell(size, state_is_tuple=True)
         cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=True)
         self._initial_state = cell.zero_state(batch_size, tf.float32)
-        #z, last_state = tf.nn.rnn(cell,
-        #        inputs,
-        #        initial_state=self._initial_state)
         z, last_state = tf.nn.seq2seq.rnn_decoder(inputs,
                 self.initial_state,
                 cell,
@@ -48,10 +45,6 @@ class LatentHiddensVRNNModel(VRNNModel):
 
         z = tf.reshape(tf.concat(1, z), [-1, size])
 
-        #logits = FullyConnected(z,
-        #        [size, vocab_size],
-        #        unit='linear',
-        #        name='logits')
         logits = tf.matmul(z, softmax_w) + softmax_b
         self._probs = tf.nn.softmax(logits)
 

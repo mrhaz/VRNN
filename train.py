@@ -38,16 +38,16 @@ def run_epoch(session, model, data, eval_op=None, verbose=False):
     state = session.run(model.initial_state)
 
     for step, (x, y) in enumerate(reader.ptb_iterator(data, model.batch_size,
-                                                      model.seq_lengthh)):
+                                                      model.seq_length)):
         fetches = [model.cost, model.final_state, eval_op]
         feed_dict = {}
         feed_dict[model.input_data] = x
         feed_dict[model.targets] = y
 
         for i, (z, z_mean, z_log_sigma_sq) in enumerate(model.initial_state):
-            feed_dict[z] = state.z
-            feed_dict[z_mean] = state.z_mean
-            feed_dict[z_log_sigma_sq] = state.z_log_sigma_sq
+            feed_dict[z] = state[i].z
+            feed_dict[z_mean] = state[i].z_mean
+            feed_dict[z_log_sigma_sq] = state[i].z_log_sigma_sq
 
         cost, state, _ = session.run(fetches, feed_dict)
         costs += cost
@@ -101,7 +101,7 @@ def main(args):
             valid_perplexity = run_epoch(session, mvalid, valid_data, tf.no_op())
             print('Epoch: %d Valid Perplexity: %.3f' % (i + 1, valid_perplexity))
             
-            checkpoint_path = os.path.join(FLAGS.save_dir, 'model.ckpt')
+            checkpoint_path = os.path.join(FLAGS.save_dir, FLAGS.model + '.ckpt')
             saver.save(session, checkpoint_path, global_step=i + 1)
             print('Model saved to {}'.format(checkpoint_path))
         
